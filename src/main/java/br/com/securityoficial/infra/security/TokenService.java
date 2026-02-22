@@ -2,6 +2,7 @@ package br.com.securityoficial.infra.security;
 
 
 import br.com.securityoficial.entity.User;
+import br.com.securityoficial.exception.BusinessException;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
@@ -13,27 +14,32 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
+import static br.com.securityoficial.enums.ErrorCode.TOKEN_GENERATION_ERROR;
+
 @Service
 public class TokenService {
 
     @Value("${jwt.secret}")
     private String secret;
 
+    @Value("${jwt.expiration-hours}")
+    private Long expirationHours;
+
     public String generateToken(User user) {
         try {
-            Algorithm algorithm = Algorithm.HMAC256(secret);
+            Algorithm algorithm = Algorithm.HMAC512(secret);
             return JWT.create()
                     .withIssuer("security-oficial") // Identificador da aplicação
                     .withSubject(user.getUsername()) // Recomendado usar o email ou username
                     .withExpiresAt(generateExpirationDate())
                     .sign(algorithm);
         } catch (JWTCreationException e) {
-            throw new RuntimeException("Error while generating token", e);
+            throw new BusinessException(TOKEN_GENERATION_ERROR);
         }
     }
     public String validateToken(String token) {
         try {
-            Algorithm algorithm = Algorithm.HMAC256(secret);
+            Algorithm algorithm = Algorithm.HMAC512(secret);
             return JWT.require(algorithm)
                     .withIssuer("security-oficial")
                     .build()
@@ -45,6 +51,8 @@ public class TokenService {
     }
 
     private Instant generateExpirationDate() {
-        return LocalDateTime.now().plusHours(1).toInstant(ZoneOffset.of("-03:00"));
+        return LocalDateTime.now()
+                .plusHours(expirationHours)
+                .toInstant(ZoneOffset.of("-03:00"));
     }
 }

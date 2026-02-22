@@ -1,17 +1,27 @@
 spring:
+  # 1. Importar primeiro
+  config:
+    import: "optional:file:.env[.properties]"
+
+  # 2. DATASOURCE
   datasource:
-    url: jdbc:mysql://localhost:3306/spring-oficial?createDatabaseIfNotExist=true
-    username: root
-    password: root
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
   jpa:
     show-sql: true
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
         open-in-view: false
 
+  cache:
+    type: simple
+
+# JWT
 jwt:
-  secret: ${JWT_SECRET:minha-chave-que-precisa-ser-grande-acho-que-agora-vai}
+  secret: ${JWT_SECRET}
+  expiration-hours: ${JWT_EXPIRATION_HOURS}

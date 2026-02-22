@@ -11,6 +11,8 @@ import br.com.securityoficial.infra.security.TokenService;
 import br.com.securityoficial.mapper.UserMapper;
 import br.com.securityoficial.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -48,7 +50,6 @@ public class UserService {
     }
 
     public String login(LoginRequest request) {
-
         User user = repository.findByUsernameOrEmail(request.username(), request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
 
@@ -75,6 +76,7 @@ public class UserService {
         }
     }
 
+    @Cacheable(value = "users", key = "#username")
     public UserResponse findByUsername(String username) {
         User user = repository.findByUsername(username)
                 .orElseThrow(
@@ -82,8 +84,10 @@ public class UserService {
         return mapper.toResponse(user);
     }
 
-    public void delete(String email) {
-        var user = repository.findByEmail(email)
+    @Transactional
+    @CacheEvict(value = "users", key = "#username")
+    public void delete(String username) {
+        var user = repository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
         repository.delete(user);
     }
