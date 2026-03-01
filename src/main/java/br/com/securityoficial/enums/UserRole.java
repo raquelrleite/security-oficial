@@ -13,7 +13,8 @@ public enum UserRole {
     ADMIN(Set.of(
             UserPermission.DATA_READ,
             UserPermission.DATA_WRITE,
-            UserPermission.USER_MANAGEMENT
+            UserPermission.USER_MANAGEMENT,
+            UserPermission.ADMIN_ACCESS
     )),
     USER(Set.of(
             UserPermission.DATA_READ

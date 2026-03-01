@@ -24,9 +24,17 @@ spring:
         open-in-view: false
 
   cache:
-    type: simple
+    type: redis
 
 # JWT
 jwt:
   secret: ${JWT_SECRET}
   expiration-hours: ${JWT_EXPIRATION_HOURS}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS}
+
+  cache:
+    users:
+      ttl-minutes: 60
+
+server:
+  port: 8081

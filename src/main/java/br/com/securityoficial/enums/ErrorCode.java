@@ -17,7 +17,11 @@ public enum ErrorCode {
     INVALID_CREDENTIALS("AUTH_001", "Invalid username or password", HttpStatus.UNAUTHORIZED),
     CREDENTIALS_NOT_FOUND("AUTH_002", "Authentication credentials were not found", HttpStatus.UNAUTHORIZED),
     TOKEN_GENERATION_ERROR("AUTH_003", "An error occurred while generating the access token", HttpStatus.INTERNAL_SERVER_ERROR),
-    TOKEN_INVALID_OR_EXPIRED("AUTH_004", "The provided token is invalid or has expired", HttpStatus.UNAUTHORIZED);
+    TOKEN_INVALID_OR_EXPIRED("AUTH_004", "The provided token is invalid or has expired", HttpStatus.UNAUTHORIZED),
+
+    // AUTHORIZATION ERRORS
+    ACCESS_DENIED("AUTHZ_001", "You do not have permission to access this resource", HttpStatus.FORBIDDEN);
+
     private final String code;
     private final String message;
     private final HttpStatus httpStatus;

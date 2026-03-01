@@ -2,17 +2,21 @@ package br.com.securityoficial.service;
 
 import br.com.securityoficial.dto.request.LoginRequest;
 import br.com.securityoficial.dto.request.UserRequest;
+import br.com.securityoficial.dto.response.LoginResponse;
 import br.com.securityoficial.dto.response.UserResponse;
 import br.com.securityoficial.entity.User;
-import br.com.securityoficial.enums.ErrorCode;
 import br.com.securityoficial.enums.UserRole;
 import br.com.securityoficial.exception.BusinessException;
 import br.com.securityoficial.infra.security.TokenService;
 import br.com.securityoficial.mapper.UserMapper;
 import br.com.securityoficial.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -21,18 +25,13 @@ import java.util.List;
 import static br.com.securityoficial.enums.ErrorCode.*;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
     private final UserRepository repository;
     private final UserMapper mapper;
     private final PasswordEncoder encoder;
     private final TokenService tokenService;
-
-    public UserService(UserRepository repository, UserMapper mapper, PasswordEncoder encoder, TokenService tokenService) {
-        this.repository = repository;
-        this.mapper = mapper;
-        this.encoder = encoder;
-        this.tokenService = tokenService;
-    }
+    private final AuthenticationManager authenticationManager;
 
     @Transactional
     public UserResponse register(UserRequest request) {
@@ -49,15 +48,36 @@ public class UserService {
         return mapper.toResponse(user);
     }
 
-    public String login(LoginRequest request) {
-        User user = repository.findByUsernameOrEmail(request.username(), request.email())
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
+    public LoginResponse login(LoginRequest request) {
+        String identifier = (request.username() != null) ? request.username() : request.email();
 
-        if (!encoder.matches(request.password(), user.getPassword())) {
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(identifier, request.password())
+            );
+        } catch (AuthenticationException e) {
+            throw new BusinessException(INVALID_CREDENTIALS);
         }
 
-        return tokenService.generateToken(user);
+        User user = repository.findByUsernameOrEmail(identifier)
+                .orElseThrow(() -> new BusinessException(INVALID_CREDENTIALS));
+
+        String accessToken = tokenService.generateToken(user);
+        String refreshToken = tokenService.refreshToken(user);
+
+        return new LoginResponse(accessToken, refreshToken);
+    }
+
+    public LoginResponse refresh(String refreshToken) {
+        Long userId = Long.valueOf(tokenService.validateToken(refreshToken));
+
+        var user = repository.findById(userId)
+                .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
+
+        String newAccessToken = tokenService.generateToken(user);
+        String newRefreshToken = tokenService.refreshToken(user);
+
+        return new LoginResponse(newAccessToken, newRefreshToken);
     }
 
     public List<UserResponse> findAll() {
@@ -65,15 +85,6 @@ public class UserService {
                 .stream()
                 .map(mapper::toResponse)
                 .toList();
-    }
-
-    private void validateUniqueness(UserRequest request) {
-        if (repository.existsByEmail(request.email())) {
-            throw new BusinessException(EMAIL_ALREADY_EXISTS);
-        }
-        if (repository.existsByUsername(request.username())) {
-            throw new BusinessException(USERNAME_ALREADY_EXISTS);
-        }
     }
 
     @Cacheable(value = "users", key = "#username")
@@ -90,5 +101,14 @@ public class UserService {
         var user = repository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
         repository.delete(user);
+    }
+
+    private void validateUniqueness(UserRequest request) {
+        if (repository.existsByEmail(request.email())) {
+            throw new BusinessException(EMAIL_ALREADY_EXISTS);
+        }
+        if (repository.existsByUsername(request.username())) {
+            throw new BusinessException(USERNAME_ALREADY_EXISTS);
+        }
     }
 }

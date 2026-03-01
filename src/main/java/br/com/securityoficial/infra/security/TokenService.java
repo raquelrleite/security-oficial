@@ -11,13 +11,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 import static br.com.securityoficial.enums.ErrorCode.TOKEN_GENERATION_ERROR;
+import static br.com.securityoficial.enums.ErrorCode.TOKEN_INVALID_OR_EXPIRED;
 
 @Service
 public class TokenService {
+
+    private static final String ISSUER = "security-oficial";
 
     @Value("${jwt.secret}")
     private String secret;
@@ -25,34 +27,49 @@ public class TokenService {
     @Value("${jwt.expiration-hours}")
     private Long expirationHours;
 
+    @Value("${jwt.refresh-expiration-days}")
+    private long refreshExpirationDays;
+
     public String generateToken(User user) {
         try {
             Algorithm algorithm = Algorithm.HMAC512(secret);
             return JWT.create()
-                    .withIssuer("security-oficial") // Identificador da aplicação
+                    .withIssuer(ISSUER) // Identificador da aplicação
                     .withSubject(user.getUsername()) // Recomendado usar o email ou username
-                    .withExpiresAt(generateExpirationDate())
+                    .withExpiresAt(generateExpirationDate(expirationHours, ChronoUnit.HOURS))
                     .sign(algorithm);
         } catch (JWTCreationException e) {
             throw new BusinessException(TOKEN_GENERATION_ERROR);
         }
     }
+
+    public String refreshToken(User user) {
+        try {
+            Algorithm algorithm = Algorithm.HMAC512(secret);
+            return JWT.create()
+                    .withIssuer(ISSUER)
+                    .withSubject(user.getId().toString())
+                    .withExpiresAt(generateExpirationDate(refreshExpirationDays, ChronoUnit.DAYS))
+                    .sign(algorithm);
+        } catch (JWTCreationException e) {
+            throw new BusinessException(TOKEN_GENERATION_ERROR);
+        }
+    }
+
     public String validateToken(String token) {
         try {
             Algorithm algorithm = Algorithm.HMAC512(secret);
             return JWT.require(algorithm)
-                    .withIssuer("security-oficial")
+                    .withIssuer(ISSUER)
                     .build()
                     .verify(token)
                     .getSubject();
         } catch (JWTVerificationException e) {
-            return null;
+            throw new BusinessException(TOKEN_INVALID_OR_EXPIRED, e);
         }
     }
 
-    private Instant generateExpirationDate() {
-        return LocalDateTime.now()
-                .plusHours(expirationHours)
-                .toInstant(ZoneOffset.of("-03:00"));
+    private Instant generateExpirationDate(long time, ChronoUnit unit) {
+        return Instant.now().plus(time, unit);
     }
 }
